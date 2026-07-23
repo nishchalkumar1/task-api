@@ -112,7 +112,11 @@ SELECT * FROM tasks WHERE id = ?;
 
 Replace the placeholder below with your own DB Browser screenshot before submission.
 
-Add a screenshot of DB Browser for SQLite here in your final submission.
+The DB Browser screenshot included in this repository displays the `tasks` table and the seeded rows. See the image below:
+
+![DB Browser for SQLite screenshot](db-browser.png)
+
+Caption: The `tasks` table open in DB Browser for SQLite showing seeded rows and a created "Persistent task".
 
 ## Example `curl -i` Output
 
