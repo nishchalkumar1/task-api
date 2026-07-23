@@ -4,13 +4,17 @@
 
 Task API
 
-## Short Project Description
+## Why SQLite Was Chosen
 
-Task API is a beginner-friendly FastAPI CRUD application for managing simple tasks in memory. It uses Pydantic for validation and FastAPI for automatic API documentation.
+SQLite is a lightweight file-based database that works well for small projects, internships, and beginner-friendly CRUD exercises. It requires no separate database server, keeps the setup simple, and still provides persistence across server restarts.
+
+## Project Overview
+
+Task API is a beginner-friendly FastAPI CRUD application for managing tasks with SQLite persistence. The API keeps the same request and response formats as the earlier version, but the storage layer now uses a local `tasks.db` file.
 
 ## Features
 
-- In-memory task storage
+- SQLite-backed task storage
 - Create, read, update, and delete tasks
 - Input validation with Pydantic
 - JSON error responses
@@ -20,6 +24,7 @@ Task API is a beginner-friendly FastAPI CRUD application for managing simple tas
 
 - Python 3.11+
 - FastAPI
+- sqlite3
 - Uvicorn
 - Pydantic
 
@@ -83,6 +88,32 @@ http://127.0.0.1:8000/docs
 | PUT | /tasks/{id} | Update an existing task |
 | DELETE | /tasks/{id} | Delete a task |
 
+## Database Description
+
+The application creates a local SQLite database named `tasks.db` automatically if it does not already exist. The database contains a single `tasks` table with the columns `id`, `title`, and `done`.
+
+The `tasks.db` file should usually be git-ignored because it is a generated runtime database file.
+
+## SQL Query Example
+
+```sql
+SELECT * FROM tasks WHERE id = ?;
+```
+
+## Opening `tasks.db` in DB Browser for SQLite
+
+1. Install DB Browser for SQLite.
+2. Open DB Browser.
+3. Click "Open Database".
+4. Select the generated `tasks.db` file from the project folder.
+5. Use the Browse Data tab to inspect the `tasks` table.
+
+## Screenshot Placeholder
+
+Replace the placeholder below with your own DB Browser screenshot before submission.
+
+Add a screenshot of DB Browser for SQLite here in your final submission.
+
 ## Example `curl -i` Output
 
 Example request:
@@ -100,9 +131,9 @@ content-type: application/json
 {"status":"ok"}
 ```
 
-## In-Memory Data Storage
+## Data Persistence
 
-This application stores all tasks only in memory using a Python list. That means all data is temporary. If the server restarts, the task list returns to the initial sample data.
+This application stores tasks in SQLite, so task data persists across server restarts. The sample rows are only inserted the first time the database is created and are not duplicated on restart.
 
 ## License
 
