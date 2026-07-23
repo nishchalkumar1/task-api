@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -9,18 +11,70 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 app = FastAPI(
     title="Task API",
-    description="A beginner-friendly in-memory CRUD API for managing tasks.",
+    description="A beginner-friendly SQLite-backed CRUD API for managing tasks.",
     version="1.0",
 )
 
+DATABASE_PATH = Path(__file__).with_name("tasks.db")
 
-# In-memory data store.
-# This list is reset every time the application restarts.
-tasks: list[dict[str, Any]] = [
-    {"id": 1, "title": "Learn FastAPI", "done": False},
-    {"id": 2, "title": "Build CRUD API", "done": False},
-    {"id": 3, "title": "Submit Internship Assignment", "done": False},
-]
+
+def get_database_connection() -> sqlite3.Connection:
+    """Create a SQLite connection configured for row-based access."""
+    connection = sqlite3.connect(DATABASE_PATH)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def initialize_database() -> None:
+    """Create the database table and seed rows the first time the app starts."""
+    with get_database_connection() as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                done INTEGER NOT NULL
+            )
+            """
+        )
+        connection.commit()
+
+        cursor = connection.execute("SELECT COUNT(*) FROM tasks")
+        row_count = cursor.fetchone()[0]
+        if row_count == 0:
+            connection.executemany(
+                "INSERT INTO tasks(title, done) VALUES(?, ?)",
+                [
+                    ("Learn FastAPI", 0),
+                    ("Build CRUD API", 0),
+                    ("Submit Internship Assignment", 0),
+                ],
+            )
+            connection.commit()
+
+
+def row_to_task(row: sqlite3.Row) -> dict[str, Any]:
+    """Convert a SQLite row into the API's task response format."""
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "done": bool(row["done"]),
+    }
+
+
+def get_task_row(task_id: int) -> dict[str, Any] | None:
+    """Fetch a single task row by id."""
+    with get_database_connection() as connection:
+        cursor = connection.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return row_to_task(row)
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    initialize_database()
 
 
 class TaskBase(BaseModel):
@@ -111,7 +165,10 @@ def favicon() -> Response:
     description="Return all tasks currently stored in memory.",
 )
 def get_tasks() -> list[dict[str, Any]]:
-    return tasks
+    with get_database_connection() as connection:
+        cursor = connection.execute("SELECT * FROM tasks")
+        rows = cursor.fetchall()
+    return [row_to_task(row) for row in rows]
 
 
 @app.get(
@@ -122,7 +179,7 @@ def get_tasks() -> list[dict[str, Any]]:
     description="Return a single task by its id. Return 404 when the task does not exist.",
 )
 def get_task(task_id: int) -> dict[str, Any] | JSONResponse:
-    task = next((item for item in tasks if item["id"] == task_id), None)
+    task = get_task_row(task_id)
     if task is None:
         return JSONResponse(status_code=404, content={"error": f"Task {task_id} not found"})
     return task
@@ -137,10 +194,16 @@ def get_task(task_id: int) -> dict[str, Any] | JSONResponse:
     description="Create a new task with an auto-generated id and done set to false.",
 )
 def create_task(task_in: TaskCreate) -> dict[str, Any]:
-    next_id = max((task["id"] for task in tasks), default=0) + 1
-    new_task = {"id": next_id, "title": task_in.title, "done": False}
-    tasks.append(new_task)
-    return new_task
+    with get_database_connection() as connection:
+        cursor = connection.execute(
+            "INSERT INTO tasks(title, done) VALUES(?, ?)",
+            (task_in.title, 0),
+        )
+        connection.commit()
+
+        task_id = cursor.lastrowid
+        row = connection.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        return row_to_task(row)
 
 
 @app.put(
@@ -151,14 +214,22 @@ def create_task(task_in: TaskCreate) -> dict[str, Any]:
     description="Update the title and/or done status for an existing task.",
 )
 def update_task(task_id: int, task_in: TaskUpdate) -> dict[str, Any] | JSONResponse:
-    task = next((item for item in tasks if item["id"] == task_id), None)
+    task = get_task_row(task_id)
     if task is None:
         return JSONResponse(status_code=404, content={"error": f"Task {task_id} not found"})
 
-    if task_in.title is not None:
-        task["title"] = task_in.title
-    if task_in.done is not None:
-        task["done"] = task_in.done
+    updated_title = task_in.title if task_in.title is not None else task["title"]
+    updated_done = task_in.done if task_in.done is not None else task["done"]
+
+    with get_database_connection() as connection:
+        connection.execute(
+            "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
+            (updated_title, int(updated_done), task_id),
+        )
+        connection.commit()
+
+    task["title"] = updated_title
+    task["done"] = updated_done
 
     return task
 
@@ -171,11 +242,13 @@ def update_task(task_id: int, task_in: TaskUpdate) -> dict[str, Any] | JSONRespo
     description="Delete a task by id. Return 204 with an empty body when successful.",
 )
 def delete_task(task_id: int) -> JSONResponse:
-    task_index = next((index for index, item in enumerate(tasks) if item["id"] == task_id), None)
-    if task_index is None:
+    with get_database_connection() as connection:
+        cursor = connection.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        connection.commit()
+
+    if cursor.rowcount == 0:
         return JSONResponse(status_code=404, content={"error": f"Task {task_id} not found"})
 
-    tasks.pop(task_index)
     return Response(status_code=204)
 
 
