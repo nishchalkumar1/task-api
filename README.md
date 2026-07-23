@@ -108,15 +108,13 @@ SELECT * FROM tasks WHERE id = ?;
 4. Select the generated `tasks.db` file from the project folder.
 5. Use the Browse Data tab to inspect the `tasks` table.
 
-## Screenshot Placeholder
-
-Replace the placeholder below with your own DB Browser screenshot before submission.
+## DB Browser Screenshot
 
 The DB Browser screenshot included in this repository displays the `tasks` table and the seeded rows. See the image below:
 
 ![DB Browser for SQLite screenshot](db-browser.png)
 
-Caption: The `tasks` table open in DB Browser for SQLite showing seeded rows and a created "Persistent task".
+The `tasks` table is open in DB Browser for SQLite showing seeded rows and a created "Persistent task".
 
 ## Example `curl -i` Output
 
